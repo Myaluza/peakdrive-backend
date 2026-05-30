@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { EventsController } from './events.controller';
 import { EventsService } from './events.service';
 import { VoucherModule } from './voucher/voucher.module';
+import { EventModule } from './event/event.module';
 
 @Module({
     imports: [
@@ -12,6 +13,7 @@ import { VoucherModule } from './voucher/voucher.module';
             envFilePath: '.env',
         }),
         VoucherModule,
+        EventModule,
     ],
     controllers: [AppController, EventsController],
     providers: [AppService, EventsService],
