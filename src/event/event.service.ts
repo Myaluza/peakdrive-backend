@@ -17,7 +17,7 @@ export class EventService {
 
         const { data, error } = await this.supabase
             .from('events')
-            .select('name, location, date, "finishTime", "expectedVolume", latitude, longitude')
+            .select('id, name, location, date, "finishTime", "expectedVolume", latitude, longitude')
             .eq('city_id', formattedCity)
             .gte('date', today)
 
