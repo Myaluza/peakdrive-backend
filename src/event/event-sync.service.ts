@@ -1,40 +1,66 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { firstValueFrom } from "rxjs";
-import * as xml2js from 'xml2js'
 
 @Injectable()
 export class EventSyncService {
-    private readonly logger = new Logger(EventSyncService.name)
+    private readonly logger = new Logger(EventSyncService.name);
 
     constructor(private readonly httpService: HttpService) {}
 
     async fetchRSSFeed(url: string, cityId: string) {
         try {
-            this.logger.log(`Connecting to internet feed for ${cityId}: ${url}`)
+            const apiKey = process.env.QUICKET_API_KEY;
+            if (!apiKey) {
+                this.logger.error("QUICKET_API_KEY is missing from your .env file!");
+                return [];
+            }
 
-            const response = await firstValueFrom(this.httpService.get(url))
-            const xmlData = response.data
-            const parser = new xml2js.Parser({ explicitArray: false })
-            const result = await parser.parseStringPromise(xmlData)
-            const rawItems = result.rss.channel.item
+            this.logger.log(`Connecting to Quicket Production API for ${cityId}...`);
 
-            const mappedEvents = rawItems.map((item: any) => {
+            // Fire the request using Quicket's explicit gateway header and query patterns
+            const response = await firstValueFrom(
+                this.httpService.get('https://api.quicket.co.za/api/events', {
+                    headers: {
+                        'Accept': 'application/json',
+                        // 1. Quicket API management gateway standard header layer
+                        'Ocp-Apim-Subscription-Key': apiKey 
+                    },
+                    params: {
+                        // 2. Fallback query matching the collection value identifier
+                        apiKey: '275c3152604cb9f17da5df5cb88b1889'
+, 
+                        pageSize: 50,
+                        page: 1
+                    }
+                })
+            );
+
+            // Unpack from their structural results array format
+            const rawEvents = response.data?.results || (Array.isArray(response.data) ? response.data : []);
+
+            if (!rawEvents || rawEvents.length === 0) {
+                this.logger.warn("Quicket returned an empty dataset or structure mismatch.");
+                return [];
+            }
+
+            // Map production fields over to your core datastore keys
+            const mappedEvents = rawEvents.map((event: any) => {
                 return {
-                    title: item.title,
-                    description: item.description,
-                    eventDate: item.pubDate ? new Date(item.pubDate) : new Date(),
-                    link: item.link,
+                    title: event.name, 
+                    description: event.description || 'No Description',
+                    eventDate: event.start_date ? new Date(event.start_date) : new Date(), 
+                    link: event.url, 
                     cityId: cityId
                 };
             });
 
-            this.logger.log(`Successfully parsed and mapped ${mappedEvents.length} clean events.`);
+            this.logger.log(`Successfully pulled and mapped ${mappedEvents.length} real events from Quicket.`);
             return mappedEvents;
-        }
-        catch (error) {
-            this.logger.error(`Failed to read internet feed: ${(error as any).message}`)
-            return []
+
+        } catch (error) {
+            this.logger.error(`Failed to read Quicket API feed: ${(error as any).message}`);
+            return [];
         }
     }
 }

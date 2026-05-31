@@ -12,7 +12,7 @@ export class EventService {
     }
     
     async getEventsByCity(cityId: string) {
-        const formattedCity = cityId.trim().toUpperCase()
+        const formattedCity = cityId.trim().toLowerCase()
         const today = new Date().toISOString().split('T')[0]
 
         const { data, error } = await this.supabase
