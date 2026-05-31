@@ -28,7 +28,7 @@ export class EventSyncService {
                     },
                     params: {
                         // 2. Fallback query matching the collection value identifier
-                        apiKey: '275c3152604cb9f17da5df5cb88b1889'
+                        apiKey: ''
 , 
                         pageSize: 50,
                         page: 1
