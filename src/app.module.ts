@@ -8,6 +8,8 @@ import { VoucherModule } from './voucher/voucher.module';
 import { EventModule } from './event/event.module';
 import { AuthModule } from './auth/auth.module';
 import { ScheduleModule } from '@nestjs/schedule';
+import { NotificationModule } from './notifications/notification.module';
+import { NotificationService } from './notifications/notification.service';
 
 @Module({
     imports: [
@@ -18,8 +20,9 @@ import { ScheduleModule } from '@nestjs/schedule';
         VoucherModule,
         EventModule,
         AuthModule,
+        NotificationModule,
     ],
     controllers: [AppController, EventsController],
-    providers: [AppService, EventsService],
+    providers: [AppService, EventsService, NotificationService],
 })
 export class AppModule {}
