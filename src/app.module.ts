@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module';
 import { ScheduleModule } from '@nestjs/schedule';
 import { NotificationModule } from './notifications/notification.module';
 import { NotificationService } from './notifications/notification.service';
+import { NotificationScheduler } from './notifications/notification.scheduler';
 
 @Module({
     imports: [
@@ -23,6 +24,6 @@ import { NotificationService } from './notifications/notification.service';
         NotificationModule,
     ],
     controllers: [AppController, EventsController],
-    providers: [AppService, EventsService, NotificationService],
+    providers: [AppService, EventsService, NotificationService, NotificationScheduler],
 })
 export class AppModule {}

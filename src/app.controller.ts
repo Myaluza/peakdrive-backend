@@ -1,12 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
 import { NotificationService } from './notifications/notification.service';
+import { NotificationScheduler } from './notifications/notification.scheduler';
 
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
     private readonly notificationService: NotificationService,
+    private readonly notificationScheduler: NotificationScheduler,
   ) {}
 
   @Get()
@@ -23,5 +25,11 @@ export class AppController {
       'High demand expected near Moses Mabhida at 19:00. Position yourself now!'
     );
     return { message: `Notification sent to ${tokens.length} devices` };
+  }
+
+  @Get('test-scheduler')
+  async testScheduler() {
+    await this.notificationScheduler.checkUpcomingEvents();
+    return { message: 'Scheduler triggered manually' };
   }
 }
