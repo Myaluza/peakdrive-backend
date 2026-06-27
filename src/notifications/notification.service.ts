@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { createClient } from "@supabase/supabase-js";
-import * as serviceAccount from '../../firebase-service-account.json';
+import axios from "axios";
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
 import { getMessaging, MulticastMessage } from 'firebase-admin/messaging';
 
@@ -10,18 +10,19 @@ export class NotificationService {
     private supabase
 
     constructor() {
-    this.supabase = createClient(
-        process.env.SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || ''
-    )
+        this.supabase = createClient(
+            process.env.SUPABASE_URL || '',
+            process.env.SUPABASE_SERVICE_ROLE_KEY || ''
+        )
 
-    // Initialise Firebase Admin SDK if not already initialised
-    if (!getApps().length) {
-        initializeApp({
-            credential: cert(serviceAccount as any)
-        })
+        if (!getApps().length) {
+            const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+            console.log('project_id:', serviceAccount.project_id)
+            initializeApp({
+                credential: cert(serviceAccount)
+            })
+        }
     }
-}
 
     async getAllPushTokens(): Promise<string[]> {
         const { data, error } = await this.supabase
@@ -42,25 +43,19 @@ export class NotificationService {
             return
         }
 
-        // Expo push tokens need to be sent via Expo's API
-        // FCM tokens need to be sent via Firebase Admin SDK
-        // We'll handle both cases
         const expoTokens = tokens.filter(t => t.startsWith('ExponentPushToken'))
         const fcmTokens = tokens.filter(t => !t.startsWith('ExponentPushToken'))
 
-        // Send to Expo tokens via Expo Push API
         if (expoTokens.length > 0) {
             await this.sendViaExpoPush(expoTokens, title, body)
         }
 
-        // Send to FCM tokens directly via Firebase Admin
         if (fcmTokens.length > 0) {
             await this.sendViaFirebaseAdmin(fcmTokens, title, body)
         }
     }
 
     private async sendViaExpoPush(tokens: string[], title: string, body: string) {
-        const axios = (await import('axios')).default
         const messages = tokens.map(token => ({
             to: token,
             sound: 'default',
@@ -83,7 +78,6 @@ export class NotificationService {
             )
             this.logger.log(`Expo push sent to ${tokens.length} devices`)
 
-            // Check for errors in response
             const results = response.data?.data || []
             results.forEach((result: any, i: number) => {
                 if (result.status === 'error') {
