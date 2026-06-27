@@ -2,6 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { HttpService } from "@nestjs/axios";
 import { firstValueFrom } from "rxjs";
 import { AiEnrichmentService } from "./ai-enrichment.service";
+import { GeocodingService } from "./geocoding.service";
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
@@ -9,7 +10,6 @@ import * as crypto from 'crypto';
 const LOG_DIR = path.join(process.cwd(), 'logs');
 const REVIEW_LOG = path.join(LOG_DIR, 'events-requiring-review.log');
 
-// Placeholder values that should be rejected
 const INVALID_LOCATIONS = [
     'tbc', 'tbd', 'various venues', 'various locations', 'online',
     'virtual', 'to be confirmed', 'to be announced', 'nationwide'
@@ -52,26 +52,19 @@ function parseEndTime(whenStr: string): string | null {
 
 function parseEventDate(dateStr: string): string {
     if (!dateStr) return new Date().toISOString().split('T')[0];
-
-    // SerpAPI sometimes returns relative strings like "Tomorrow" or "Jun 25"
-    // Always append current year if no year is present
     const currentYear = new Date().getFullYear();
     const hasYear = /\d{4}/.test(dateStr);
     const withYear = hasYear ? dateStr : `${dateStr} ${currentYear}`;
-
     try {
         const parsed = new Date(withYear);
         if (!isNaN(parsed.getTime())) {
             return parsed.toISOString().split('T')[0];
         }
     } catch {}
-
     return new Date().toISOString().split('T')[0];
 }
 
 function generateEventKey(title: string, date: string): string {
-    // Create a consistent unique key from title + date
-    // Normalise title to catch minor variations like extra spaces or punctuation
     const normalised = title.toLowerCase().replace(/[^a-z0-9]/g, '').substring(0, 50);
     const hash = crypto.createHash('md5').update(`${normalised}_${date}`).digest('hex');
     return `peakdrive_${hash}`;
@@ -101,7 +94,8 @@ export class EventSyncService {
 
     constructor(
         private readonly httpService: HttpService,
-        private readonly aiEnrichmentService: AiEnrichmentService
+        private readonly aiEnrichmentService: AiEnrichmentService,
+        private readonly geocodingService: GeocodingService
     ) {}
 
     async fetchEventsForCity(cityId: string, cityName: string) {
@@ -143,7 +137,7 @@ export class EventSyncService {
                 const serpEndTime = parseEndTime(whenStr);
                 const description = event.description || '';
 
-                // Step 1: deduplicate using title + date hash
+                // Step 1: deduplicate
                 const eventKey = generateEventKey(event.title, dateStr);
                 if (seenKeys.has(eventKey)) {
                     this.logger.warn(`Duplicate skipped: "${event.title}" on ${dateStr}`);
@@ -157,7 +151,6 @@ export class EventSyncService {
 
                 if (isValidLocation(event.address)) {
                     const raw = formatAddress(event.address);
-                    // Split into venue (first part) and address (rest)
                     const parts = raw.split(',').map((p: string) => p.trim());
                     venue = parts[0];
                     address = parts.slice(1).join(', ');
@@ -195,6 +188,9 @@ export class EventSyncService {
                     expectedVolume = enriched.expectedVolume;
                 }
 
+                // Step 4: geocode
+                const coords = await this.geocodingService.geocodeAddress(venue, address, cityName);
+
                 enrichedEvents.push({
                     title: event.title,
                     description,
@@ -205,7 +201,9 @@ export class EventSyncService {
                     address,
                     finishTime,
                     expectedVolume,
-                    eventKey
+                    eventKey,
+                    latitude: coords?.latitude ?? 0,
+                    longitude: coords?.longitude ?? 0
                 });
             }
 

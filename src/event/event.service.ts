@@ -51,8 +51,8 @@ export class EventService {
                 finishTime: event.finishTime || '22:00:00',
                 expectedVolume: event.expectedVolume || 'medium',
                 city_id: event.cityId,
-                latitude: 0.0,
-                longitude: 0.0,
+                latitude: event.latitude ?? 0,
+                longitude: event.longitude ?? 0,
                 source_url: event.eventKey || event.link || event.title
             }
         });
@@ -78,16 +78,26 @@ export class EventService {
         cutoff.setDate(cutoff.getDate() - 7);
         const cutoffStr = cutoff.toISOString().split('T')[0];
 
-        const { error } = await this.supabase
+        const { error: oldError } = await this.supabase
             .from('events')
             .delete()
             .lt('date', cutoffStr);
 
-        if (error) {
-            this.logger.error('Failed to delete old events:', error.message);
-            return;
+        if (oldError) {
+            this.logger.error('Failed to delete old events:', oldError.message);
+        } else {
+            this.logger.log(`Deleted events older than ${cutoffStr}`);
         }
 
-        this.logger.log(`Deleted events older than ${cutoffStr}`);
+        const { error: invalidError } = await this.supabase
+            .from('events')
+            .delete()
+            .in('location', ['Various Venues', 'TBC', 'Online', 'Virtual', 'To Be Confirmed', 'To Be Announced']);
+
+        if (invalidError) {
+            this.logger.error('Failed to delete invalid location events:', invalidError.message);
+        } else {
+            this.logger.log('Deleted events with invalid locations');
+        }
     }
 }
